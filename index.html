@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
+    <title>Halo Reach - Title Screen</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="menu-viewport">
+        <!-- Layers rendered back-to-front -->
+        <div class="layer" id="layer-background">
+            <img src="bitmaps/title_background.png" alt="">
+        </div>
+        <div class="layer" id="layer-back-01">
+            <img src="bitmaps/title_back_01.png" alt="">
+        </div>
+        <div class="layer" id="layer-back-02">
+            <img src="bitmaps/title_back_02.png" alt="">
+        </div>
+        <div class="layer" id="layer-midground">
+            <img src="bitmaps/title_midground.png" alt="">
+        </div>
+        <div class="layer" id="layer-front">
+            <img src="bitmaps/title_front.png" alt="">
+        </div>
+    </div>
+
+    <!-- Audio -->
+    <audio id="bg-music" loop preload="auto">
+        <source src="sound/the_world.ogg" type="audio/ogg">
+        <source src="sound/the_world.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="bg-ambience" loop preload="auto">
+        <source src="sound/menu_amb_smal_nobomb.ogg" type="audio/ogg">
+        <source src="sound/menu_amb_smal_nobomb.mp3" type="audio/mpeg">
+    </audio>
+
+    <script src="menu.js"></script>
+</body>
+</html>
