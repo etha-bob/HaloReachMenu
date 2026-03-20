@@ -9,6 +9,7 @@ body {
     overflow: hidden;
     width: 100vw;
     height: 100vh;
+    font-family: 'Segoe UI', sans-serif;
 }
 
 #menu-viewport {
@@ -16,6 +17,13 @@ body {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+    /* 
+     * All shaders have self-illum intensity of 0.6 (60%).
+     * We approximate this with a brightness filter on the
+     * entire viewport. Adjust if your exported PNGs are
+     * already at the correct brightness.
+     */
+    filter: brightness(0.6);
 }
 
 .layer {
@@ -31,18 +39,20 @@ body {
 }
 
 .layer img {
-    /* Each image fills the viewport; actual sizing will need
-       tuning once you see the extracted bitmaps */
-    max-width: none;
+    /*
+     * The images are textured onto quads that fill the camera view.
+     * Use object-fit: cover to fill the viewport while maintaining
+     * aspect ratio. You may need to tweak per-layer if some layers
+     * are smaller than the viewport.
+     */
+    width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-/* 
- * Layer ordering via z-index (back to front).
- * The blend mode depends on what the rmsh shaders specify.
- * Most Reach menu layers use standard alpha blending,
- * but some use additive for glow effects.
+/*
+ * Z-INDEX LAYER ORDERING (back to front)
+ * Matches the rendering order from the BSP instanced geometry.
  */
 #layer-background {
     z-index: 1;
@@ -62,4 +72,80 @@ body {
 
 #layer-front {
     z-index: 5;
+}
+
+/*
+ * MIDGROUND SCROLLING TEXTURE
+ * 
+ * From the shader data:
+ *   - Float Constant 0: {a: 2.3, b: 1.0} → UV scale 2.3x horizontal, 1x vertical
+ *   - Overlay: Translation X, period = 100 seconds
+ *   - Address Mode: 16 (wrap/tile on U)
+ *
+ * We create a div that is 2.3× the viewport width (to show the tiling),
+ * uses the midground bitmap as a repeating background, and scrolls
+ * one full tile width over 100 seconds.
+ *
+ * Since the texture tiles at 2.3×, the visible area shows 2.3 repetitions.
+ * We need the div wide enough to scroll seamlessly. Making it 2× the tiled
+ * width (4.6× viewport) gives us a full scroll cycle.
+ */
+.scrolling-texture {
+    position: absolute;
+    top: 0;
+    left: 0;
+    /* Width = 2 × (2.3 × 100vw) for seamless loop. 
+       We scroll half the width over 100s, then reset. */
+    width: 460vw;
+    height: 100%;
+    background-image: url('bitmaps/title_midground.png');
+    background-repeat: repeat-x;
+    /* 
+     * background-size: The texture tiles 2.3× across the viewport,
+     * so one tile = 100vw / 2.3 ≈ 43.48vw wide, full height.
+     * Using the ratio relative to the 460vw container:
+     * one tile = (100/2.3) / 460 × 100% ≈ 9.45% of container width
+     */
+    background-size: calc(100vw / 2.3) 100%;
+    animation: midground-scroll 100s linear infinite;
+}
+
+@keyframes midground-scroll {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        /* Scroll exactly one tile width (100vw / 2.3) to loop seamlessly */
+        transform: translateX(calc(-100vw / 2.3));
+    }
+}
+
+/*
+ * START OVERLAY
+ */
+#start-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    cursor: pointer;
+    transition: opacity 1s ease;
+}
+
+#start-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#start-overlay p {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
 }

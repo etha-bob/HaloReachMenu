@@ -1,118 +1,195 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // =========================================================
-    // PARALLAX CONFIGURATION
-    // =========================================================
-    // The Halo Reach menu camera has a very subtle slow drift.
-    // Each layer moves at a different rate based on its depth.
-    // Layers closer to the camera move more; distant layers
-    // move less — standard parallax.
-    //
-    // These multipliers will need tuning once you see the
-    // actual bitmaps. The ratios are derived from the relative
-    // Y-positions in the BSP sub groups.
-    // =========================================================
-
-    const layers = [
-        { id: 'layer-background', depthFactor: 0.02 },  // barely moves
-        { id: 'layer-back-01',    depthFactor: 0.05 },
-        { id: 'layer-back-02',    depthFactor: 0.08 },
-        { id: 'layer-midground',  depthFactor: 0.15 },
-        { id: 'layer-front',      depthFactor: 0.25 },  // moves most
-    ];
-
-    const layerElements = layers.map(l => ({
-        el: document.getElementById(l.id),
-        factor: l.depthFactor,
-    }));
+(function () {
+    'use strict';
 
     // =========================================================
-    // CAMERA DRIFT ANIMATION
-    // =========================================================
-    // The Reach title screen camera does a very slow horizontal
-    // drift / sway. This is controlled by the scenario scripts
-    // and camera animation tags. We simulate it with a sine wave.
-    //
-    // Period: ~20-30 seconds for a full cycle
-    // Amplitude: very small (a few pixels of parallax shift)
+    // CONFIGURATION — derived from tag data
     // =========================================================
 
-    const DRIFT_PERIOD = 25000;    // ms for full cycle
-    const DRIFT_AMPLITUDE = 15;    // max pixels of shift on front layer
+    const CONFIG = {
+        // Parallax camera drift
+        drift: {
+            periodMs: 25000,        // Full sway cycle
+            amplitudePx: 12,        // Max pixel shift on closest layer
+            verticalRatio: 0.3,     // Vertical drift is 30% of horizontal
+        },
 
-    let startTime = performance.now();
+        // Parallax depth factors per layer (back to front).
+        // Derived from relative Y-distances in the BSP sub groups.
+        // Background barely moves; front moves most.
+        layers: [
+            { id: 'layer-background', depthFactor: 0.02 },
+            { id: 'layer-back-01',    depthFactor: 0.06 },
+            { id: 'layer-back-02',    depthFactor: 0.10 },
+            { id: 'layer-midground',  depthFactor: 0.18 },
+            { id: 'layer-front',      depthFactor: 0.28 },
+        ],
 
-    function animateParallax(timestamp) {
-        const elapsed = timestamp - startTime;
-        const phase = (elapsed % DRIFT_PERIOD) / DRIFT_PERIOD;
-        const sineValue = Math.sin(phase * Math.PI * 2);
+        // Audio — from lsnd tag
+        audio: {
+            // Main loop: gain = -9 dB → linear ≈ 0.354
+            // (we'll use a slightly higher value since web audio
+            //  doesn't have the same reference level as the engine)
+            mainLoopVolume: 0.35,
+            mainLoopFadeIn: 1.0,      // seconds
 
-        layerElements.forEach(({ el, factor }) => {
-            const offsetX = sineValue * DRIFT_AMPLITUDE * factor;
-            // Slight vertical drift too (smaller amplitude)
-            const offsetY = Math.cos(phase * Math.PI * 2) * 
-                           (DRIFT_AMPLITUDE * 0.3) * factor;
-            el.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            // Detail sound: spooky6_details
+            // Plays randomly every 10–25 seconds at -9 dB
+            detailVolume: 0.35,
+            detailMinInterval: 10,     // seconds
+            detailMaxInterval: 25,     // seconds
+        },
+    };
+
+    // =========================================================
+    // AUDIO ENGINE
+    // =========================================================
+
+    class MenuAudio {
+        constructor() {
+            this.ctx = null;
+            this.mainLoop = null;
+            this.detailSound = null;
+            this.mainGain = null;
+            this.detailGain = null;
+            this.detailTimer = null;
+            this.started = false;
+        }
+
+        async init() {
+            if (this.started) return;
+            this.started = true;
+
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Create gain nodes
+            this.mainGain = this.ctx.createGain();
+            this.mainGain.gain.setValueAtTime(0, this.ctx.currentTime);
+            this.mainGain.connect(this.ctx.destination);
+
+            this.detailGain = this.ctx.createGain();
+            this.detailGain.gain.setValueAtTime(CONFIG.audio.detailVolume, this.ctx.currentTime);
+            this.detailGain.connect(this.ctx.destination);
+
+            // Load and play main loop
+            try {
+                const loopBuffer = await this.loadAudio('sound/the_world_loop.ogg');
+                this.mainLoop = this.ctx.createBufferSource();
+                this.mainLoop.buffer = loopBuffer;
+                this.mainLoop.loop = true;
+                this.mainLoop.connect(this.mainGain);
+                this.mainLoop.start(0);
+
+                // Fade in over 1 second (from lsnd: Fade In Duration = 1.0)
+                this.mainGain.gain.linearRampToValueAtTime(
+                    CONFIG.audio.mainLoopVolume,
+                    this.ctx.currentTime + CONFIG.audio.mainLoopFadeIn
+                );
+            } catch (e) {
+                console.warn('Could not load main loop audio:', e);
+            }
+
+            // Load detail sound buffer
+            try {
+                this.detailBuffer = await this.loadAudio('sound/spooky6_details.ogg');
+                this.scheduleDetailSound();
+            } catch (e) {
+                console.warn('Could not load detail audio:', e);
+            }
+        }
+
+        async loadAudio(url) {
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            return this.ctx.decodeAudioData(arrayBuffer);
+        }
+
+        scheduleDetailSound() {
+            // Random interval between min and max (from lsnd detail: 10–25s)
+            const min = CONFIG.audio.detailMinInterval;
+            const max = CONFIG.audio.detailMaxInterval;
+            const delay = min + Math.random() * (max - min);
+
+            this.detailTimer = setTimeout(() => {
+                this.playDetailSound();
+                this.scheduleDetailSound(); // Schedule next
+            }, delay * 1000);
+        }
+
+        playDetailSound() {
+            if (!this.detailBuffer || !this.ctx) return;
+
+            const source = this.ctx.createBufferSource();
+            source.buffer = this.detailBuffer;
+
+            // Random stereo panning (yaw -180 to 180 → pan -1 to 1)
+            const panner = this.ctx.createStereoPanner();
+            panner.pan.setValueAtTime(Math.random() * 2 - 1, this.ctx.currentTime);
+
+            source.connect(panner);
+            panner.connect(this.detailGain);
+            source.start(0);
+        }
+    }
+
+    // =========================================================
+    // PARALLAX ENGINE
+    // =========================================================
+
+    class ParallaxEngine {
+        constructor() {
+            this.layerElements = CONFIG.layers.map(l => ({
+                el: document.getElementById(l.id),
+                factor: l.depthFactor,
+            }));
+            this.startTime = performance.now();
+            this.running = false;
+        }
+
+        start() {
+            this.running = true;
+            this.animate = this.animate.bind(this);
+            requestAnimationFrame(this.animate);
+        }
+
+        animate(timestamp) {
+            if (!this.running) return;
+
+            const elapsed = timestamp - this.startTime;
+            const phase = (elapsed % CONFIG.drift.periodMs) / CONFIG.drift.periodMs;
+            const angle = phase * Math.PI * 2;
+
+            const sineX = Math.sin(angle);
+            const cosY = Math.cos(angle * 0.7); // Slightly different frequency for Y
+
+            this.layerElements.forEach(({ el, factor }) => {
+                if (!el) return;
+                const offsetX = sineX * CONFIG.drift.amplitudePx * factor;
+                const offsetY = cosY * CONFIG.drift.amplitudePx * CONFIG.drift.verticalRatio * factor;
+                el.style.transform = `translate(${offsetX.toFixed(2)}px, ${offsetY.toFixed(2)}px)`;
+            });
+
+            requestAnimationFrame(this.animate);
+        }
+    }
+
+    // =========================================================
+    // INITIALIZATION
+    // =========================================================
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const parallax = new ParallaxEngine();
+        const audio = new MenuAudio();
+
+        // Start parallax immediately (no user interaction needed)
+        parallax.start();
+
+        // Start audio on user interaction (browser autoplay policy)
+        const overlay = document.getElementById('start-overlay');
+        overlay.addEventListener('click', () => {
+            audio.init();
+            overlay.classList.add('hidden');
+            // Remove overlay from DOM after fade
+            setTimeout(() => overlay.remove(), 1500);
         });
-
-        requestAnimationFrame(animateParallax);
-    }
-
-    requestAnimationFrame(animateParallax);
-
-    // =========================================================
-    // AUDIO
-    // =========================================================
-    // The title screen has two audio layers:
-    // 1. "the_world" - the main orchestral music loop
-    // 2. ambient background (wind/environment)
-    //
-    // From the BSP sound palette:
-    //   - Cutoff Distance: 2.0
-    //   - Interpolation Speed: 2.0
-    //   - Both play simultaneously
-    //
-    // Audio starts on first user interaction (browser policy).
-    // =========================================================
-
-    const bgMusic = document.getElementById('bg-music');
-    const bgAmbience = document.getElementById('bg-ambience');
-
-    // Set volumes (music is dominant, ambience is subtle)
-    bgMusic.volume = 0.7;
-    bgAmbience.volume = 0.3;
-
-    function startAudio() {
-        bgMusic.play().catch(() => {});
-        bgAmbience.play().catch(() => {});
-        document.removeEventListener('click', startAudio);
-        document.removeEventListener('keydown', startAudio);
-    }
-
-    // Browsers require user interaction before playing audio
-    document.addEventListener('click', startAudio);
-    document.addEventListener('keydown', startAudio);
-
-    // =========================================================
-    // OPTIONAL: Shader-driven texture scrolling
-    // =========================================================
-    // Some layers may have UV scroll animation defined in the
-    // rmsh shader. If when you extract the shader tags you find
-    // scroll_speed_u or scroll_speed_v parameters, you can add
-    // CSS animation to those specific layers:
-    //
-    // Example for a layer with horizontal texture scroll:
-    //
-    //   @keyframes texture-scroll {
-    //       from { background-position-x: 0; }
-    //       to { background-position-x: -100%; }
-    //   }
-    //
-    //   #layer-some-scrolling-layer img {
-    //       animation: texture-scroll 60s linear infinite;
-    //   }
-    //
-    // The scroll speed from the shader tag will tell you the
-    // duration. Typical Reach menu scroll speeds are very slow
-    // (~0.01 to 0.05 units/second).
-    // =========================================================
-});
+    });
+})();

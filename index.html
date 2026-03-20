@@ -8,7 +8,7 @@
 </head>
 <body>
     <div id="menu-viewport">
-        <!-- Layers rendered back-to-front -->
+        <!-- Layers rendered back-to-front (order matters for compositing) -->
         <div class="layer" id="layer-background">
             <img src="bitmaps/title_background.png" alt="">
         </div>
@@ -18,23 +18,19 @@
         <div class="layer" id="layer-back-02">
             <img src="bitmaps/title_back_02.png" alt="">
         </div>
+        <!-- Midground uses a scrolling div instead of a single img -->
         <div class="layer" id="layer-midground">
-            <img src="bitmaps/title_midground.png" alt="">
+            <div class="scrolling-texture" id="midground-scroll"></div>
         </div>
         <div class="layer" id="layer-front">
             <img src="bitmaps/title_front.png" alt="">
         </div>
     </div>
 
-    <!-- Audio -->
-    <audio id="bg-music" loop preload="auto">
-        <source src="sound/the_world.ogg" type="audio/ogg">
-        <source src="sound/the_world.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="bg-ambience" loop preload="auto">
-        <source src="sound/menu_amb_smal_nobomb.ogg" type="audio/ogg">
-        <source src="sound/menu_amb_smal_nobomb.mp3" type="audio/mpeg">
-    </audio>
+    <!-- Click overlay to start audio (browser autoplay policy) -->
+    <div id="start-overlay">
+        <p>Click anywhere to start</p>
+    </div>
 
     <script src="menu.js"></script>
 </body>
