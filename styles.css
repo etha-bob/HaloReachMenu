@@ -2,6 +2,9 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+
+    --oversize-front: 125%;
+    --left-right-drift: 12.5rem;
 }
 
 body {
@@ -36,6 +39,8 @@ body {
     align-items: center;
     justify-content: center;
     pointer-events: none;
+    will-change: transform;
+    backface-visibility: hidden;
 }
 
 .layer img {
@@ -62,8 +67,24 @@ body {
     z-index: 2;
 }
 
+#layer-back-01 img {
+    /* 512x512 — not a full-screen layer; hug bottom-right like the reference */
+    width: auto;
+    height: 80%;
+    object-fit: contain;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+}
+
 #layer-back-02 {
     z-index: 3;
+}
+
+#layer-back-02 img {
+    /* Slightly oversized so parallax drift doesn't reveal edges */
+    width: 105%;
+    height: 105%;
 }
 
 #layer-midground {
@@ -72,6 +93,20 @@ body {
 
 #layer-front {
     z-index: 5;
+    /* Oversized so CSS drift animation never reveals edges */
+    width: var(--oversize-front);
+    height: var(--oversize-front);
+    top: calc((100% - var(--oversize-front)) / 2);
+    left: calc((100% - var(--oversize-front)) / 2);
+    animation: front-drift 250s linear infinite;
+}
+
+@keyframes front-drift {
+    0%   { transform: translate3d(0, 0, 0); }
+    25%  { transform: translate3d(var(--left-right-drift), 0, 0); }
+    50%  { transform: translate3d(0, 0, 0); }
+    75%  { transform: translate3d(calc(-1 * var(--left-right-drift)), 0, 0); }
+    100% { transform: translate3d(0, 0, 0); }
 }
 
 /*
@@ -100,23 +135,21 @@ body {
     height: 100%;
     background-image: url('bitmaps/title_midground.png');
     background-repeat: repeat-x;
-    /* 
-     * background-size: The texture tiles 2.3× across the viewport,
-     * so one tile = 100vw / 2.3 ≈ 43.48vw wide, full height.
-     * Using the ratio relative to the 460vw container:
-     * one tile = (100/2.3) / 460 × 100% ≈ 9.45% of container width
-     */
-    background-size: calc(100vw / 2.3) 100%;
+    /* Maintain the 3:1 aspect ratio of the 1536x512 source image.
+     * Each tile: width = 100vw/2.3, height = width/3 = 100vw/6.9 */
+    background-size: calc(100vw / 2.3) calc(100vw / 6.9);
+    background-position: left bottom;
+    will-change: transform;
     animation: midground-scroll 100s linear infinite;
 }
 
 @keyframes midground-scroll {
     from {
-        transform: translateX(0);
+        transform: translate3d(0, 0, 0);
     }
     to {
         /* Scroll exactly one tile width (100vw / 2.3) to loop seamlessly */
-        transform: translateX(calc(-100vw / 2.3));
+        transform: translate3d(calc(-100vw / 2.3), 0, 0);
     }
 }
 
@@ -148,4 +181,50 @@ body {
     font-size: 1.5rem;
     text-transform: uppercase;
     letter-spacing: 0.3em;
+}
+
+
+/*
+ * Rain camera effects — derived from default_rain.cfxs
+ * Apply this class to #menu-viewport when on a rain-enabled lobby screen.
+ * NOT used on the title screen.
+ */
+#menu-viewport.rain-active {
+    /*
+     * Color grading: Push toward cool blue-grey
+     * The cfxs Large/Medium/Small colors average to a cool blue tint.
+     * 
+     * - hue-rotate: shift slightly toward blue
+     * - saturate: desaturate (rain washes out color)
+     * - brightness: 0.6 is already applied; rain doesn't change it much
+     * - contrast: slight reduction for the hazy look
+     */
+    filter: 
+        brightness(0.6)
+        saturate(0.7)
+        contrast(0.9)
+        hue-rotate(10deg);
+}
+
+/*
+ * Bloom/haze overlay for rain
+ * Inherent Bloom: 0.5, Highlight Bloom: 0.3, Bloom Intensity: 0.3
+ * Creates the soft diffused glow look
+ */
+#menu-viewport.rain-active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 50;
+    pointer-events: none;
+    /* Soft blue-grey haze overlay matching the cfxs small color */
+    background: radial-gradient(
+        ellipse at center,
+        rgba(78, 142, 152, 0.08) 0%,
+        rgba(13, 28, 41, 0.12) 100%
+    );
+    mix-blend-mode: screen;
 }

@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="menu-viewport">
+    <div id="menu-viewport" class="rain-active">
         <!-- Layers rendered back-to-front (order matters for compositing) -->
         <div class="layer" id="layer-background">
             <img src="bitmaps/title_background.png" alt="">
@@ -15,9 +15,9 @@
         <div class="layer" id="layer-back-01">
             <img src="bitmaps/title_back_01.png" alt="">
         </div>
-        <div class="layer" id="layer-back-02">
+        <!-- <div class="layer" id="layer-back-02">
             <img src="bitmaps/title_back_02.png" alt="">
-        </div>
+        </div> -->
         <!-- Midground uses a scrolling div instead of a single img -->
         <div class="layer" id="layer-midground">
             <div class="scrolling-texture" id="midground-scroll"></div>
@@ -28,9 +28,9 @@
     </div>
 
     <!-- Click overlay to start audio (browser autoplay policy) -->
-    <div id="start-overlay">
+    <!-- <div id="start-overlay">
         <p>Click anywhere to start</p>
-    </div>
+    </div> -->
 
     <script src="menu.js"></script>
 </body>

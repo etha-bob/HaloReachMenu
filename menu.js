@@ -21,7 +21,7 @@
             { id: 'layer-back-01',    depthFactor: 0.06 },
             { id: 'layer-back-02',    depthFactor: 0.10 },
             { id: 'layer-midground',  depthFactor: 0.18 },
-            { id: 'layer-front',      depthFactor: 0.28 },
+            // layer-front is animated via pure CSS keyframes
         ],
 
         // Audio — from lsnd tag
@@ -165,7 +165,7 @@
                 if (!el) return;
                 const offsetX = sineX * CONFIG.drift.amplitudePx * factor;
                 const offsetY = cosY * CONFIG.drift.amplitudePx * CONFIG.drift.verticalRatio * factor;
-                el.style.transform = `translate(${offsetX.toFixed(2)}px, ${offsetY.toFixed(2)}px)`;
+                el.style.transform = `translate3d(${offsetX.toFixed(2)}px, ${offsetY.toFixed(2)}px, 0)`;
             });
 
             requestAnimationFrame(this.animate);
