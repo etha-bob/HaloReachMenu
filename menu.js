@@ -2,45 +2,6 @@
     'use strict';
 
     // =========================================================
-    // CONFIGURATION — derived from tag data
-    // =========================================================
-
-    const CONFIG = {
-        // Parallax camera drift
-        drift: {
-            periodMs: 25000,        // Full sway cycle
-            amplitudePx: 12,        // Max pixel shift on closest layer
-            verticalRatio: 0.3,     // Vertical drift is 30% of horizontal
-        },
-
-        // Parallax depth factors per layer (back to front).
-        // Derived from relative Y-distances in the BSP sub groups.
-        // Background barely moves; front moves most.
-        layers: [
-            { id: 'layer-background', depthFactor: 0.02 },
-            { id: 'layer-back-01',    depthFactor: 0.06 },
-            { id: 'layer-back-02',    depthFactor: 0.10 },
-            { id: 'layer-midground',  depthFactor: 0.18 },
-            // layer-front is animated via pure CSS keyframes
-        ],
-
-        // Audio — from lsnd tag
-        audio: {
-            // Main loop: gain = -9 dB → linear ≈ 0.354
-            // (we'll use a slightly higher value since web audio
-            //  doesn't have the same reference level as the engine)
-            mainLoopVolume: 0.35,
-            mainLoopFadeIn: 1.0,      // seconds
-
-            // Detail sound: spooky6_details
-            // Plays randomly every 10–25 seconds at -9 dB
-            detailVolume: 0.35,
-            detailMinInterval: 10,     // seconds
-            detailMaxInterval: 25,     // seconds
-        },
-    };
-
-    // =========================================================
     // AUDIO ENGINE
     // =========================================================
 
@@ -132,64 +93,11 @@
     }
 
     // =========================================================
-    // PARALLAX ENGINE
-    // =========================================================
-
-    class ParallaxEngine {
-        constructor() {
-            this.layerElements = CONFIG.layers.map(l => ({
-                el: document.getElementById(l.id),
-                factor: l.depthFactor,
-            }));
-            this.startTime = performance.now();
-            this.running = false;
-        }
-
-        start() {
-            this.running = true;
-            this.animate = this.animate.bind(this);
-            requestAnimationFrame(this.animate);
-        }
-
-        animate(timestamp) {
-            if (!this.running) return;
-
-            const elapsed = timestamp - this.startTime;
-            const phase = (elapsed % CONFIG.drift.periodMs) / CONFIG.drift.periodMs;
-            const angle = phase * Math.PI * 2;
-
-            const sineX = Math.sin(angle);
-            const cosY = Math.cos(angle * 0.7); // Slightly different frequency for Y
-
-            this.layerElements.forEach(({ el, factor }) => {
-                if (!el) return;
-                const offsetX = sineX * CONFIG.drift.amplitudePx * factor;
-                const offsetY = cosY * CONFIG.drift.amplitudePx * CONFIG.drift.verticalRatio * factor;
-                el.style.transform = `translate3d(${offsetX.toFixed(2)}px, ${offsetY.toFixed(2)}px, 0)`;
-            });
-
-            requestAnimationFrame(this.animate);
-        }
-    }
-
-    // =========================================================
     // INITIALIZATION
     // =========================================================
 
     document.addEventListener('DOMContentLoaded', () => {
-        const parallax = new ParallaxEngine();
         const audio = new MenuAudio();
-
-        // Start parallax immediately (no user interaction needed)
-        parallax.start();
-
-        // Start audio on user interaction (browser autoplay policy)
-        const overlay = document.getElementById('start-overlay');
-        overlay.addEventListener('click', () => {
-            audio.init();
-            overlay.classList.add('hidden');
-            // Remove overlay from DOM after fade
-            setTimeout(() => overlay.remove(), 1500);
-        });
+        audio.init();
     });
 })();

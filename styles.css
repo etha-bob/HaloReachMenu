@@ -3,8 +3,31 @@
     padding: 0;
     box-sizing: border-box;
 
-    --oversize-front: 125%;
-    --left-right-drift: 12.5rem;
+    /* ── Layer sizes (% of viewport; set > 100% to bleed past edges) ── */
+    --size-background:  112.3%;
+    --size-back-01:     100%;
+    --size-back-02:     100%;
+    --size-midground:   100%;
+    --size-front:       134.9%;
+
+    /* ── Parallax drift (layer sways from -left to +right) ──────────── */
+    --left-background-drift:  0rem;
+    --right-background-drift: 0rem;
+
+    --left-back-01-drift:     0rem;
+    --right-back-01-drift:    0rem;
+
+    --left-back-02-drift:     0rem;
+    --right-back-02-drift:    0rem;
+
+    --left-midground-drift:   0rem;
+    --right-midground-drift:  0rem;
+
+    --left-front-drift:       15.6rem;
+    --center-front-drift:     0.1rem;
+    --right-front-drift:      15.6rem;
+
+    --timer: 5s;
 }
 
 body {
@@ -20,13 +43,7 @@ body {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    /* 
-     * All shaders have self-illum intensity of 0.6 (60%).
-     * We approximate this with a brightness filter on the
-     * entire viewport. Adjust if your exported PNGs are
-     * already at the correct brightness.
-     */
-    filter: brightness(0.6);
+    /* filter: brightness(0.9); */
 }
 
 .layer {
@@ -44,187 +61,88 @@ body {
 }
 
 .layer img {
-    /*
-     * The images are textured onto quads that fill the camera view.
-     * Use object-fit: cover to fill the viewport while maintaining
-     * aspect ratio. You may need to tweak per-layer if some layers
-     * are smaller than the viewport.
-     */
+    /* contain = scale to fit without cropping or stretching */
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
 }
 
-/*
- * Z-INDEX LAYER ORDERING (back to front)
- * Matches the rendering order from the BSP instanced geometry.
- */
+/* ── Z-INDEX LAYER ORDERING (back to front) ─────────────────────── */
+
 #layer-background {
     z-index: 1;
+    width: var(--size-background);
+    height: var(--size-background);
+    top: calc((100% - var(--size-background)) / 2);
+    left: calc((100% - var(--size-background)) / 2);
 }
 
+/* BACK LAYER 01 (MOUNTAIN) */
 #layer-back-01 {
     z-index: 2;
-}
-
-#layer-back-01 img {
-    /* 512x512 — not a full-screen layer; hug bottom-right like the reference */
-    width: auto;
-    height: 80%;
-    object-fit: contain;
-    position: absolute;
-    right: 0;
+    width: var(--size-back-01);
+    height: var(--size-back-01);
+    top: auto;
     bottom: 0;
+    right: 0;
+    animation: layer-back-01-sway var(--timer) ease-in-out infinite alternate;
 }
 
+@keyframes layer-back-01-sway {
+    0%   { transform: translate3d(calc(-1 * var(--left-back-01-drift)), 0, 0); }
+    100% { transform: translate3d(var(--right-back-01-drift), 0, 0); }
+}
+
+/* BACK LAYER 02 (CLOUD) */
 #layer-back-02 {
     z-index: 3;
+    width: var(--size-back-02);
+    height: var(--size-back-02);
+    animation: layer-back-02-sway var(--timer) ease-in-out infinite alternate;
 }
 
-#layer-back-02 img {
-    /* Slightly oversized so parallax drift doesn't reveal edges */
-    width: 105%;
-    height: 105%;
+@keyframes layer-back-02-sway {
+    0%   { transform: translate3d(calc(-1 * var(--left-back-02-drift)), 0, 0); }
+    100% { transform: translate3d(var(--right-back-02-drift), 0, 0); }
 }
 
+/* MIDGROUND LAYER */
 #layer-midground {
     z-index: 4;
+    width: var(--size-midground);
+    height: var(--size-midground);
+    top: auto;
+    bottom: 0;
+    left: calc((100% - var(--size-midground)) / 2);
+    animation: layer-midground-sway var(--timer) ease-in-out infinite alternate;
 }
 
+@keyframes layer-midground-sway {
+    0%   { transform: translate3d(calc(-1 * var(--left-midground-drift)), 0, 0); }
+    100% { transform: translate3d(var(--right-midground-drift), 0, 0); }
+}
+
+/* FRONT LAYER */
 #layer-front {
     z-index: 5;
-    /* Oversized so CSS drift animation never reveals edges */
-    width: var(--oversize-front);
-    height: var(--oversize-front);
-    top: calc((100% - var(--oversize-front)) / 2);
-    left: calc((100% - var(--oversize-front)) / 2);
-    animation: front-drift 250s linear infinite;
+    width: var(--size-front);
+    height: var(--size-front);
+    top: calc((100% - var(--size-front)) / 2);
+    left: calc((100% - var(--size-front)) / 2);
+    animation: layer-front-sway var(--timer) ease-in-out infinite alternate;
 }
 
-@keyframes front-drift {
-    0%   { transform: translate3d(0, 0, 0); }
-    25%  { transform: translate3d(var(--left-right-drift), 0, 0); }
-    50%  { transform: translate3d(0, 0, 0); }
-    75%  { transform: translate3d(calc(-1 * var(--left-right-drift)), 0, 0); }
-    100% { transform: translate3d(0, 0, 0); }
-}
-
-/*
- * MIDGROUND SCROLLING TEXTURE
- * 
- * From the shader data:
- *   - Float Constant 0: {a: 2.3, b: 1.0} → UV scale 2.3x horizontal, 1x vertical
- *   - Overlay: Translation X, period = 100 seconds
- *   - Address Mode: 16 (wrap/tile on U)
- *
- * We create a div that is 2.3× the viewport width (to show the tiling),
- * uses the midground bitmap as a repeating background, and scrolls
- * one full tile width over 100 seconds.
- *
- * Since the texture tiles at 2.3×, the visible area shows 2.3 repetitions.
- * We need the div wide enough to scroll seamlessly. Making it 2× the tiled
- * width (4.6× viewport) gives us a full scroll cycle.
- */
-.scrolling-texture {
-    position: absolute;
-    top: 0;
-    left: 0;
-    /* Width = 2 × (2.3 × 100vw) for seamless loop. 
-       We scroll half the width over 100s, then reset. */
-    width: 460vw;
-    height: 100%;
-    background-image: url('bitmaps/title_midground.png');
-    background-repeat: repeat-x;
-    /* Maintain the 3:1 aspect ratio of the 1536x512 source image.
-     * Each tile: width = 100vw/2.3, height = width/3 = 100vw/6.9 */
-    background-size: calc(100vw / 2.3) calc(100vw / 6.9);
-    background-position: left bottom;
-    will-change: transform;
-    animation: midground-scroll 100s linear infinite;
-}
-
-@keyframes midground-scroll {
-    from {
-        transform: translate3d(0, 0, 0);
-    }
-    to {
-        /* Scroll exactly one tile width (100vw / 2.3) to loop seamlessly */
-        transform: translate3d(calc(-100vw / 2.3), 0, 0);
-    }
-}
-
-/*
- * START OVERLAY
- */
-#start-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    cursor: pointer;
-    transition: opacity 1s ease;
-}
-
-#start-overlay.hidden {
-    opacity: 0;
-    pointer-events: none;
-}
-
-#start-overlay p {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 1.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3em;
-}
-
-
-/*
- * Rain camera effects — derived from default_rain.cfxs
- * Apply this class to #menu-viewport when on a rain-enabled lobby screen.
- * NOT used on the title screen.
- */
-#menu-viewport.rain-active {
-    /*
-     * Color grading: Push toward cool blue-grey
-     * The cfxs Large/Medium/Small colors average to a cool blue tint.
-     * 
-     * - hue-rotate: shift slightly toward blue
-     * - saturate: desaturate (rain washes out color)
-     * - brightness: 0.6 is already applied; rain doesn't change it much
-     * - contrast: slight reduction for the hazy look
-     */
-    filter: 
-        brightness(0.6)
-        saturate(0.7)
-        contrast(0.9)
-        hue-rotate(10deg);
-}
-
-/*
- * Bloom/haze overlay for rain
- * Inherent Bloom: 0.5, Highlight Bloom: 0.3, Bloom Intensity: 0.3
- * Creates the soft diffused glow look
- */
-#menu-viewport.rain-active::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 50;
-    pointer-events: none;
-    /* Soft blue-grey haze overlay matching the cfxs small color */
-    background: radial-gradient(
-        ellipse at center,
-        rgba(78, 142, 152, 0.08) 0%,
-        rgba(13, 28, 41, 0.12) 100%
-    );
-    mix-blend-mode: screen;
+/* 
+Start center, move left for 50 seconds all the way to the left
+Still for 12 seconds
+Move right for 50 seconds all the way to the right
+Still for 12 seconds
+Move left for 50 seconds to the center
+Still for 12 seconds
+*/
+@keyframes layer-front-sway {
+    /* 0% { transform: translate3d(var(--left-front-drift), 0, 0); }
+    100% { transform: translate3d(var(--left-front-drift), 0, 0); } */
+    0%   { transform: translate3d(calc(-1 * var(--center-front-drift)), 0, 0); }
+    100%   { transform: translate3d(calc(-1 * var(--center-front-drift)), 0, 0); }
 }
